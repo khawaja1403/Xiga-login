@@ -38,7 +38,6 @@ const $ = (id) =>
 
 let signup = false;
 let currentSession = null;
-let rendering = false;
 
 
 function message(id, text, ok = false) {
@@ -51,14 +50,16 @@ function message(id, text, ok = false) {
 
   el.className =
     "msg " +
-    (text
-      ? (ok ? "ok" : "err")
-      : "");
+    (
+      text
+        ? (ok ? "ok" : "err")
+        : ""
+    );
 }
 
 
 // ==========================================
-// AUTH SCREEN
+// AUTH MODE
 // ==========================================
 
 function authMode(isSignup) {
@@ -160,7 +161,7 @@ async function fn(
 
 
 // ==========================================
-// CHECK SUBSCRIPTION
+// SUBSCRIPTION STATUS
 // ==========================================
 
 async function loadSubscription() {
@@ -204,7 +205,7 @@ async function loadSubscription() {
   } catch (error) {
 
     console.error(
-      "Status error:",
+      "Subscription status error:",
       error
     );
 
@@ -232,19 +233,6 @@ async function showDashboard(
 
   }
 
-
-  // Prevent duplicate rendering
-  if (
-    rendering &&
-    currentSession?.user?.id ===
-    session.user?.id
-  ) {
-    return;
-  }
-
-
-  rendering = true;
-
   currentSession = session;
 
 
@@ -262,9 +250,6 @@ async function showDashboard(
 
 
   await loadSubscription();
-
-
-  rendering = false;
 
 }
 
@@ -323,7 +308,6 @@ $("authBtn").onclick =
 
     try {
 
-
       // ====================================
       // SIGN UP
       // ====================================
@@ -336,9 +320,9 @@ $("authBtn").onclick =
         } =
           await sb.auth.signUp({
 
-            email,
+            email: email,
 
-            password,
+            password: password,
 
             options: {
               data: {
@@ -354,7 +338,7 @@ $("authBtn").onclick =
         }
 
 
-        if (data.session) {
+        if (data && data.session) {
 
           await showDashboard(
             data.session
@@ -383,9 +367,9 @@ $("authBtn").onclick =
         } =
           await sb.auth.signInWithPassword({
 
-            email,
+            email: email,
 
-            password
+            password: password
 
           });
 
@@ -395,10 +379,45 @@ $("authBtn").onclick =
         }
 
 
-        if (data.session) {
+        if (
+          data &&
+          data.session
+        ) {
 
-          await showDashboard(
-            data.session
+          /*
+            Show dashboard immediately.
+            We do not wait for the
+            auth-state listener.
+          */
+
+          currentSession =
+            data.session;
+
+
+          $("auth").classList.add(
+            "hidden"
+          );
+
+          $("dash").classList.remove(
+            "hidden"
+          );
+
+
+          $("userEmail").textContent =
+            data.session.user.email || "—";
+
+
+          /*
+            Load subscription separately.
+            Login does not depend on this.
+          */
+
+          loadSubscription();
+
+        } else {
+
+          throw new Error(
+            "Login succeeded but no session was returned."
           );
 
         }
@@ -412,6 +431,7 @@ $("authBtn").onclick =
         "Authentication error:",
         error
       );
+
 
       message(
         "authMsg",
@@ -438,19 +458,26 @@ $("logout").onclick =
 
     $("logout").disabled = true;
 
+
     try {
 
       await sb.auth.signOut();
 
-    } finally {
+    } catch (error) {
 
-      $("logout").disabled = false;
-
-      authMode(false);
-
-      showLoggedOut();
+      console.error(
+        "Logout error:",
+        error
+      );
 
     }
+
+
+    $("logout").disabled = false;
+
+    authMode(false);
+
+    showLoggedOut();
 
   };
 
@@ -475,16 +502,13 @@ $("generate").onclick =
     try {
 
       /*
-        The Edge Function will:
+        Edge Function:
 
-        1. Create the activation key
-        2. Link it to this account
-        3. Send the key to:
+        1. Creates the key
+        2. Links it to this account
+        3. Sends it to:
 
            khawaja1403@gmail.com
-
-        The user does NOT see
-        the actual key here.
       */
 
       await fn("request");
@@ -503,6 +527,7 @@ $("generate").onclick =
         "Generate key error:",
         error
       );
+
 
       message(
         "keyMsg",
@@ -600,7 +625,8 @@ $("activate").onclick =
       );
 
 
-      // Get the actual current status
+      // Refresh actual subscription status
+
       await loadSubscription();
 
 
@@ -611,166 +637,5 @@ $("activate").onclick =
         error
       );
 
-      message(
-        "keyMsg",
-        error.message ||
-        "Activation failed."
-      );
 
-
-    } finally {
-
-      $("activate").disabled = false;
-
-    }
-
-  };
-
-
-// ==========================================
-// AUTH STATE LISTENER
-// ==========================================
-//
-// IMPORTANT:
-// Do NOT call Supabase Edge Functions
-// directly inside this callback.
-// The callback only updates the UI.
-// This avoids startup/refresh races.
-//
-
-const {
-  data: authListener
-} =
-  sb.auth.onAuthStateChange(
-    (event, session) => {
-
-      if (
-        event === "SIGNED_OUT"
-      ) {
-
-        showLoggedOut();
-
-        return;
-
-      }
-
-
-      if (
-        event === "TOKEN_REFRESHED" &&
-        session
-      ) {
-
-        currentSession = session;
-
-        return;
-
-      }
-
-
-      if (
-        event === "SIGNED_IN" &&
-        session
-      ) {
-
-        currentSession = session;
-
-        // Let the current login handler
-        // display the dashboard.
-        return;
-
-      }
-
-
-      if (
-        event === "INITIAL_SESSION" &&
-        session
-      ) {
-
-        currentSession = session;
-
-        // Startup handler manages dashboard.
-        return;
-
-      }
-
-    }
-  );
-
-
-// ==========================================
-// START APPLICATION
-// ==========================================
-
-async function startApp() {
-
-  authMode(false);
-
-
-  $("auth").classList.remove(
-    "hidden"
-  );
-
-  $("dash").classList.add(
-    "hidden"
-  );
-
-
-  try {
-
-    const {
-      data,
-      error
-    } =
-      await sb.auth.getSession();
-
-
-    if (error) {
-
-      console.error(
-        "Session error:",
-        error
-      );
-
-      showLoggedOut();
-
-      return;
-
-    }
-
-
-    const session =
-      data?.session;
-
-
-    if (session) {
-
-      await showDashboard(
-        session
-      );
-
-    } else {
-
-      showLoggedOut();
-
-    }
-
-
-  } catch (error) {
-
-    console.error(
-      "Startup error:",
-      error
-    );
-
-    showLoggedOut();
-
-  }
-
-}
-
-
-// ==========================================
-// START
-// ==========================================
-
-startApp();
+     
