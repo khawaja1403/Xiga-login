@@ -9,14 +9,29 @@ const sb = window.supabase.createClient(
   SUPABASE_PUBLISHABLE_KEY
 );
 
-const $ = id => document.getElementById(id);
+const $ = (id) => document.getElementById(id);
 
 let signup = false;
 
-function message(el, text, ok = false) {
-  $(el).textContent = text || "";
-  $(el).className = "msg " + (text ? (ok ? "ok" : "err") : "");
+
+// ------------------------------
+// MESSAGE
+// ------------------------------
+
+function message(id, text, ok = false) {
+  const el = $(id);
+
+  if (!el) return;
+
+  el.textContent = text || "";
+  el.className =
+    "msg " + (text ? (ok ? "ok" : "err") : "");
 }
+
+
+// ------------------------------
+// LOGIN / SIGNUP MODE
+// ------------------------------
 
 function authMode(isSignup) {
   signup = isSignup;
@@ -29,7 +44,10 @@ function authMode(isSignup) {
     ? "Create your secure XIGA PRO account."
     : "Sign in to continue to XIGA PRO.";
 
-  $("nameBox").classList.toggle("hidden", !signup);
+  $("nameBox").classList.toggle(
+    "hidden",
+    !signup
+  );
 
   $("authBtn").textContent = signup
     ? "CREATE ACCOUNT"
@@ -42,22 +60,31 @@ function authMode(isSignup) {
   message("authMsg", "");
 }
 
+
+// ------------------------------
+// EDGE FUNCTION
+// ------------------------------
+
 async function fn(action, extra = {}) {
-  const { data, error } = await sb.functions.invoke(
-    FUNCTION_NAME,
-    {
-      body: {
-        action,
-        ...extra
+
+  const { data, error } =
+    await sb.functions.invoke(
+      FUNCTION_NAME,
+      {
+        body: {
+          action,
+          ...extra
+        }
       }
-    }
-  );
+    );
 
   if (error) {
-    throw new Error(error.message || "Request failed");
+    throw new Error(
+      error.message || "Request failed"
+    );
   }
 
-  if (data?.error) {
+  if (data && data.error) {
     throw new Error(data.error);
   }
 
@@ -65,125 +92,221 @@ async function fn(action, extra = {}) {
 }
 
 
-// SHOW LOGIN / DASHBOARD + SUBSCRIPTION STATUS
+// ------------------------------
+// SHOW SESSION
+// ------------------------------
+
 async function showSession() {
-  const {
-    data: { session }
-  } = await sb.auth.getSession();
 
-  if (!session) {
-    $("auth").classList.remove("hidden");
-    $("dash").classList.add("hidden");
-    return;
-  }
-
-  $("auth").classList.add("hidden");
-  $("dash").classList.remove("hidden");
-
-  $("userEmail").textContent = session.user.email || "—";
-
-  // Load real subscription status
   try {
-    const status = await fn("status");
 
-    if (status.active) {
-      const expiry = new Date(
-        status.subscription_expires_at
+    const {
+      data: { session },
+      error
+    } = await sb.auth.getSession();
+
+    if (error) {
+      throw error;
+    }
+
+    // NOT LOGGED IN
+    if (!session) {
+
+      $("auth").classList.remove("hidden");
+      $("dash").classList.add("hidden");
+
+      return;
+    }
+
+    // LOGGED IN
+    $("auth").classList.add("hidden");
+    $("dash").classList.remove("hidden");
+
+    $("userEmail").textContent =
+      session.user.email || "—";
+
+
+    // GET SUBSCRIPTION STATUS
+    try {
+
+      const status = await fn("status");
+
+      if (status.active) {
+
+        const expiry =
+          new Date(
+            status.subscription_expires_at
+          );
+
+        $("sub").textContent =
+          "ACTIVE • " +
+          expiry.toLocaleDateString() +
+          " • " +
+          status.days_remaining +
+          " days left";
+
+      } else {
+
+        $("sub").textContent =
+          "Use your key to activate";
+      }
+
+    } catch (statusError) {
+
+      console.error(
+        "Subscription status error:",
+        statusError
       );
 
-      $("sub").textContent =
-        `ACTIVE • ${expiry.toLocaleDateString()} • ${status.days_remaining} days left`;
-    } else {
       $("sub").textContent =
         "Use your key to activate";
     }
 
-  } catch (e) {
-    $("sub").textContent =
-      "Unable to load subscription status";
+  } catch (error) {
+
+    console.error(
+      "Session error:",
+      error
+    );
+
+    $("auth").classList.remove("hidden");
+    $("dash").classList.add("hidden");
   }
 }
 
 
+// ------------------------------
 // SWITCH LOGIN / SIGNUP
+// ------------------------------
+
 $("switchBtn").onclick = () => {
   authMode(!signup);
 };
 
 
+// ------------------------------
 // LOGIN / SIGNUP
+// ------------------------------
+
 $("authBtn").onclick = async () => {
-  const email = $("email").value.trim();
-  const password = $("password").value;
-  const name = $("name").value.trim();
+
+  const email =
+    $("email").value.trim();
+
+  const password =
+    $("password").value;
+
+  const name =
+    $("name").value.trim();
+
 
   if (!email || !password) {
-    return message(
-      $("authMsg"),
+
+    message(
+      "authMsg",
       "Enter your email and password."
     );
+
+    return;
   }
+
 
   $("authBtn").disabled = true;
 
   message(
-    $("authMsg"),
+    "authMsg",
     signup
       ? "Creating account..."
       : "Signing in...",
     true
   );
 
+
   try {
 
     if (signup) {
 
-      const { data, error } =
-        await sb.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: name
-            }
+      const {
+        data,
+        error
+      } = await sb.auth.signUp({
+
+        email: email,
+
+        password: password,
+
+        options: {
+          data: {
+            full_name: name
           }
-        });
+        }
+
+      });
+
 
       if (error) {
         throw error;
       }
 
+
       if (data.session) {
+
         await showSession();
+
       } else {
+
         message(
-          $("authMsg"),
+          "authMsg",
           "Account created. Check your email to confirm it.",
           true
         );
       }
 
+
     } else {
 
-      const { error } =
-        await sb.auth.signInWithPassword({
-          email,
-          password
-        });
+      const {
+        data,
+        error
+      } = await sb.auth.signInWithPassword({
+
+        email: email,
+
+        password: password
+
+      });
+
 
       if (error) {
         throw error;
       }
 
+
+      if (!data.session) {
+
+        throw new Error(
+          "Login successful, but no session was created."
+        );
+      }
+
+
       await showSession();
     }
 
-  } catch (e) {
+
+  } catch (error) {
+
+    console.error(
+      "Login error:",
+      error
+    );
 
     message(
-      $("authMsg"),
-      e.message || "Unable to continue."
+      "authMsg",
+      error.message ||
+      "Unable to continue."
     );
+
 
   } finally {
 
@@ -192,9 +315,23 @@ $("authBtn").onclick = async () => {
 };
 
 
+// ------------------------------
 // LOGOUT
+// ------------------------------
+
 $("logout").onclick = async () => {
-  await sb.auth.signOut();
+
+  try {
+
+    await sb.auth.signOut();
+
+  } catch (error) {
+
+    console.error(
+      "Logout error:",
+      error
+    );
+  }
 
   authMode(false);
 
@@ -202,33 +339,45 @@ $("logout").onclick = async () => {
 };
 
 
-// GENERATE ACTIVATION KEY REQUEST
+// ------------------------------
+// GENERATE ACTIVATION KEY
+// ------------------------------
+
 $("generate").onclick = async () => {
 
   $("generate").disabled = true;
 
   message(
-    $("keyMsg"),
+    "keyMsg",
     "Generating request...",
     true
   );
+
 
   try {
 
     await fn("request");
 
     message(
-      $("keyMsg"),
+      "keyMsg",
       "Request sent to XIGA owner.",
       true
     );
 
-  } catch (e) {
+
+  } catch (error) {
+
+    console.error(
+      "Generate key error:",
+      error
+    );
 
     message(
-      $("keyMsg"),
-      e.message || "Unable to generate request"
+      "keyMsg",
+      error.message ||
+      "Unable to generate request"
     );
+
 
   } finally {
 
@@ -237,50 +386,82 @@ $("generate").onclick = async () => {
 };
 
 
+// ------------------------------
 // ACTIVATE KEY
+// ------------------------------
+
 $("activate").onclick = async () => {
 
   const key =
-    $("key").value.trim().toUpperCase();
+    $("key").value
+      .trim()
+      .toUpperCase();
+
 
   if (!key) {
-    return message(
-      $("keyMsg"),
+
+    message(
+      "keyMsg",
       "Enter your activation key."
     );
+
+    return;
   }
+
 
   $("activate").disabled = true;
 
   message(
-    $("keyMsg"),
+    "keyMsg",
     "Activating...",
     true
   );
 
+
   try {
 
     const result =
-      await fn("activate", { key });
+      await fn(
+        "activate",
+        {
+          key: key
+        }
+      );
+
 
     const expiry =
-      new Date(result.subscription_expires_at);
+      new Date(
+        result.subscription_expires_at
+      );
+
 
     $("sub").textContent =
-      `ACTIVE • ${expiry.toLocaleDateString()}`;
+      "ACTIVE • " +
+      expiry.toLocaleDateString() +
+      " • 365 days";
+
 
     message(
-      $("keyMsg"),
-      `XIGA PRO activated. Subscription ends ${expiry.toLocaleDateString()}`,
+      "keyMsg",
+      "XIGA PRO activated. Subscription ends " +
+      expiry.toLocaleDateString(),
       true
     );
 
-  } catch (e) {
+
+  } catch (error) {
+
+    console.error(
+      "Activation error:",
+      error
+    );
 
     message(
-      $("keyMsg"),
-      e.message || "Activation failed."
+      "keyMsg",
+      error.message ||
+      "Activation failed."
     );
+
 
   } finally {
 
@@ -289,12 +470,26 @@ $("activate").onclick = async () => {
 };
 
 
-// CHECK SESSION WHEN AUTH STATE CHANGES
+// ------------------------------
+// AUTH STATE CHANGE
+// ------------------------------
+
+// IMPORTANT:
+// Do not call getSession() directly inside
+// the Supabase auth callback.
+
 sb.auth.onAuthStateChange(() => {
-  showSession();
+
+  setTimeout(() => {
+    showSession();
+  }, 0);
+
 });
 
 
+// ------------------------------
 // START
+// ------------------------------
+
 authMode(false);
 showSession();
