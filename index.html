@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>XIGA PRO — Secure Access</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="glow a"></div><div class="glow b"></div>
+<main class="shell">
+<header class="brand">
+  <div class="mark">X</div>
+  <div><div class="name">XIGA</div><div class="sub">TRADING SIGNAL BOT <span>PRO</span></div></div>
+</header>
+
+<section id="auth" class="card">
+  <div class="eyebrow">SECURE ACCESS</div>
+  <h1 id="title">Welcome back</h1>
+  <p id="desc">Sign in to continue to XIGA PRO.</p>
+  <div id="nameBox" class="field hidden"><label>Full name</label><input id="name" placeholder="Your name"></div>
+  <div class="field"><label>Email</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com"></div>
+  <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+  <button id="authBtn" class="primary">LOGIN</button>
+  <button id="switchBtn" class="link">Create an account</button>
+  <div id="authMsg" class="msg"></div>
+</section>
+
+<section id="dash" class="hidden">
+  <div class="top"><div><div class="eyebrow">XIGA PRO ACCOUNT</div><h1>Control Center</h1></div><button id="logout" class="ghost">LOG OUT</button></div>
+  <div class="card account">
+    <div class="row"><div><label>ACCOUNT</label><strong id="userEmail">—</strong></div><span id="pill" class="pill">ACCOUNT</span></div>
+    <div class="expiry"><span>Subscription</span><strong id="expiry">Use your key to activate</strong></div>
+  </div>
+  <div class="card">
+    <div class="keyicon">KEY</div>
+    <h2>Activate XIGA PRO</h2>
+    <p>Generate an activation request. The key is sent to the XIGA owner, who provides it to you.</p>
+    <button id="generate" class="primary">GENERATE KEY</button>
+    <div class="or"><span>OR</span></div>
+    <div class="field"><label>Activation key</label><input id="key" placeholder="XIGA-XXXX-XXXX" autocomplete="off"></div>
+    <button id="activate" class="secondary">ACTIVATE KEY</button>
+    <div id="keyMsg" class="msg"></div>
+  </div>
+  <div class="notice">Your activation key is linked to this XIGA account and cannot be used on another account.</div>
+</section>
+
+<footer>Designed by Khawaja · XIGA PRO</footer>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+</body>
+</html>
