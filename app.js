@@ -44,10 +44,7 @@ function authMode(isSignup) {
     ? "Create your secure XIGA PRO account."
     : "Sign in to continue to XIGA PRO.";
 
-  $("nameBox").classList.toggle(
-    "hidden",
-    !signup
-  );
+  $("nameBox").classList.toggle("hidden", !signup);
 
   $("authBtn").textContent = signup
     ? "CREATE ACCOUNT"
@@ -66,7 +63,6 @@ function authMode(isSignup) {
 // ------------------------------
 
 async function fn(action, extra = {}) {
-
   const { data, error } =
     await sb.functions.invoke(
       FUNCTION_NAME,
@@ -93,10 +89,70 @@ async function fn(action, extra = {}) {
 
 
 // ------------------------------
-// SHOW SESSION
+// DISPLAY LOGGED-IN USER
 // ------------------------------
 
-async function showSession() {
+async function showDashboard(session) {
+
+  if (!session) {
+    $("auth").classList.remove("hidden");
+    $("dash").classList.add("hidden");
+    return;
+  }
+
+  $("auth").classList.add("hidden");
+  $("dash").classList.remove("hidden");
+
+  $("userEmail").textContent =
+    session.user.email || "—";
+
+
+  // ------------------------------
+  // SUBSCRIPTION STATUS
+  // ------------------------------
+
+  try {
+
+    const status = await fn("status");
+
+    if (status.active) {
+
+      const expiry =
+        new Date(
+          status.subscription_expires_at
+        );
+
+      $("sub").textContent =
+        "ACTIVE • " +
+        expiry.toLocaleDateString() +
+        " • " +
+        status.days_remaining +
+        " days left";
+
+    } else {
+
+      $("sub").textContent =
+        "Use your key to activate";
+    }
+
+  } catch (error) {
+
+    console.error(
+      "Subscription status error:",
+      error
+    );
+
+    $("sub").textContent =
+      "Use your key to activate";
+  }
+}
+
+
+// ------------------------------
+// LOAD CURRENT SESSION
+// ------------------------------
+
+async function loadSession() {
 
   try {
 
@@ -109,58 +165,7 @@ async function showSession() {
       throw error;
     }
 
-    // NOT LOGGED IN
-    if (!session) {
-
-      $("auth").classList.remove("hidden");
-      $("dash").classList.add("hidden");
-
-      return;
-    }
-
-    // LOGGED IN
-    $("auth").classList.add("hidden");
-    $("dash").classList.remove("hidden");
-
-    $("userEmail").textContent =
-      session.user.email || "—";
-
-
-    // GET SUBSCRIPTION STATUS
-    try {
-
-      const status = await fn("status");
-
-      if (status.active) {
-
-        const expiry =
-          new Date(
-            status.subscription_expires_at
-          );
-
-        $("sub").textContent =
-          "ACTIVE • " +
-          expiry.toLocaleDateString() +
-          " • " +
-          status.days_remaining +
-          " days left";
-
-      } else {
-
-        $("sub").textContent =
-          "Use your key to activate";
-      }
-
-    } catch (statusError) {
-
-      console.error(
-        "Subscription status error:",
-        statusError
-      );
-
-      $("sub").textContent =
-        "Use your key to activate";
-    }
+    await showDashboard(session);
 
   } catch (error) {
 
@@ -224,23 +229,20 @@ $("authBtn").onclick = async () => {
 
   try {
 
+    // CREATE ACCOUNT
     if (signup) {
 
       const {
         data,
         error
       } = await sb.auth.signUp({
-
         email: email,
-
         password: password,
-
         options: {
           data: {
             full_name: name
           }
         }
-
       });
 
 
@@ -251,7 +253,7 @@ $("authBtn").onclick = async () => {
 
       if (data.session) {
 
-        await showSession();
+        await showDashboard(data.session);
 
       } else {
 
@@ -263,17 +265,17 @@ $("authBtn").onclick = async () => {
       }
 
 
-    } else {
+    }
+
+    // LOGIN
+    else {
 
       const {
         data,
         error
       } = await sb.auth.signInWithPassword({
-
         email: email,
-
         password: password
-
       });
 
 
@@ -283,21 +285,22 @@ $("authBtn").onclick = async () => {
 
 
       if (!data.session) {
-
         throw new Error(
           "Login successful, but no session was created."
         );
       }
 
 
-      await showSession();
+      // Directly show dashboard.
+      // No auth-state callback is used here.
+      await showDashboard(data.session);
     }
 
 
   } catch (error) {
 
     console.error(
-      "Login error:",
+      "Authentication error:",
       error
     );
 
@@ -306,7 +309,6 @@ $("authBtn").onclick = async () => {
       error.message ||
       "Unable to continue."
     );
-
 
   } finally {
 
@@ -335,7 +337,8 @@ $("logout").onclick = async () => {
 
   authMode(false);
 
-  await showSession();
+  $("auth").classList.remove("hidden");
+  $("dash").classList.add("hidden");
 };
 
 
@@ -364,7 +367,6 @@ $("generate").onclick = async () => {
       true
     );
 
-
   } catch (error) {
 
     console.error(
@@ -377,7 +379,6 @@ $("generate").onclick = async () => {
       error.message ||
       "Unable to generate request"
     );
-
 
   } finally {
 
@@ -462,7 +463,6 @@ $("activate").onclick = async () => {
       "Activation failed."
     );
 
-
   } finally {
 
     $("activate").disabled = false;
@@ -471,25 +471,8 @@ $("activate").onclick = async () => {
 
 
 // ------------------------------
-// AUTH STATE CHANGE
-// ------------------------------
-
-// IMPORTANT:
-// Do not call getSession() directly inside
-// the Supabase auth callback.
-
-sb.auth.onAuthStateChange(() => {
-
-  setTimeout(() => {
-    showSession();
-  }, 0);
-
-});
-
-
-// ------------------------------
 // START
 // ------------------------------
 
 authMode(false);
-showSession();
+loadSession();
