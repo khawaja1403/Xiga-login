@@ -1,7 +1,7 @@
 // XIGA PRO Login frontend
 // Replace these two placeholders with your Supabase project values.
-const SUPABASE_URL = "YOUR_SUPABASE_URL";
-const SUPABASE_PUBLISHABLE_KEY = "YOUR_SUPABASE_PUBLISHABLE_KEY";
+const SUPABASE_URL = "https://ebtbxwewnanhrynnlrdm.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_5ZiMDC2HLsc_qhoFM8hVQw_CbIZS2rs";
 const FUNCTION_NAME = "xiga-request-activation-key";
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
