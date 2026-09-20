@@ -10,6 +10,10 @@ const FUNCTION_NAME =
   "xiga-request-activation-key";
 
 
+// ========================================
+// SUPABASE CLIENT
+// ========================================
+
 const supabaseClient =
   window.supabase.createClient(
     SUPABASE_URL,
@@ -19,16 +23,18 @@ const supabaseClient =
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: false,
-        storage: window.localStorage,
-        storageKey: "xiga-pro-auth"
+        storage: window.localStorage
       }
     }
   );
 
 
+// ========================================
+// HELPERS
+// ========================================
+
 const $ = (id) =>
   document.getElementById(id);
-
 
 let signupMode = false;
 
@@ -38,18 +44,16 @@ let signupMode = false;
 // ========================================
 
 function showMessage(
-  elementId,
+  id,
   text,
   success = false
 ) {
 
-  const element =
-    $(elementId);
+  const element = $(id);
 
   if (!element) return;
 
-  element.textContent =
-    text || "";
+  element.textContent = text || "";
 
   element.className =
     "msg " +
@@ -62,12 +66,10 @@ function showMessage(
 
 
 // ========================================
-// AUTH SCREEN
+// AUTH MODE
 // ========================================
 
-function setAuthMode(
-  signup
-) {
+function setAuthMode(signup) {
 
   signupMode = signup;
 
@@ -124,9 +126,7 @@ function showLogin() {
 // SHOW DASHBOARD
 // ========================================
 
-function showDashboard(
-  session
-) {
+function showDashboard(session) {
 
   if (!session) {
 
@@ -198,7 +198,7 @@ async function callFunction(
 
 
 // ========================================
-// SUBSCRIPTION
+// SUBSCRIPTION STATUS
 // ========================================
 
 async function checkSubscription() {
@@ -215,9 +215,15 @@ async function checkSubscription() {
       );
 
 
+    console.log(
+      "XIGA STATUS:",
+      result
+    );
+
+
     if (
       result &&
-      result.active &&
+      result.active === true &&
       result.subscription_expires_at
     ) {
 
@@ -234,18 +240,20 @@ async function checkSubscription() {
         result.days_remaining +
         " days left";
 
-    } else {
 
-      $("sub").textContent =
-        "INACTIVE • Activation key required";
+      return;
 
     }
+
+
+    $("sub").textContent =
+      "INACTIVE • Activation key required";
 
 
   } catch (error) {
 
     console.error(
-      "Subscription:",
+      "XIGA STATUS ERROR:",
       error
     );
 
@@ -316,10 +324,9 @@ $("authBtn").onclick =
 
     try {
 
-
-      // ==============================
+      // ==================================
       // SIGN UP
-      // ==============================
+      // ==================================
 
       if (signupMode) {
 
@@ -356,7 +363,10 @@ $("authBtn").onclick =
             data.session
           );
 
-          await checkSubscription();
+          setTimeout(
+            checkSubscription,
+            300
+          );
 
         } else {
 
@@ -374,9 +384,9 @@ $("authBtn").onclick =
       }
 
 
-      // ==============================
+      // ==================================
       // LOGIN
-      // ==============================
+      // ==================================
 
       const {
         data,
@@ -409,10 +419,6 @@ $("authBtn").onclick =
       }
 
 
-      // IMPORTANT:
-      // Show dashboard immediately.
-      // Subscription check happens AFTER login.
-
       showDashboard(
         data.session
       );
@@ -424,10 +430,13 @@ $("authBtn").onclick =
       );
 
 
-      // Do not allow subscription
-      // checking to block login.
+      // Wait until auth/session storage
+      // has finished updating.
 
-      checkSubscription();
+      setTimeout(
+        checkSubscription,
+        300
+      );
 
 
     } catch (error) {
@@ -473,7 +482,7 @@ $("logout").onclick =
     } catch (error) {
 
       console.error(
-        "Logout:",
+        "LOGOUT ERROR:",
         error
       );
 
@@ -491,7 +500,7 @@ $("logout").onclick =
 
 
 // ========================================
-// GENERATE KEY
+// GENERATE ACTIVATION KEY
 // ========================================
 
 $("generate").onclick =
@@ -525,7 +534,7 @@ $("generate").onclick =
     } catch (error) {
 
       console.error(
-        "GENERATE KEY:",
+        "GENERATE KEY ERROR:",
         error
       );
 
@@ -606,8 +615,7 @@ $("activate").onclick =
       }
 
 
-      $("key").value =
-        "";
+      $("key").value = "";
 
 
       const expiry =
@@ -624,13 +632,13 @@ $("activate").onclick =
       );
 
 
-      await checkSubscription();
+      checkSubscription();
 
 
     } catch (error) {
 
       console.error(
-        "ACTIVATE:",
+        "ACTIVATION ERROR:",
         error
       );
 
@@ -653,58 +661,88 @@ $("activate").onclick =
 
 
 // ========================================
-// START
+// AUTH STATE CHANGE
 // ========================================
+//
+// This listener is ONLY for restoring
+// the existing session.
+//
+// It does NOT call the Edge Function
+// directly inside the callback.
+//
 
-async function start() {
+supabaseClient.auth.onAuthStateChange(
+  function (event, session) {
 
-  setAuthMode(false);
-
-
-  try {
-
-    const {
-      data,
-      error
-    } =
-      await supabaseClient.auth.getSession();
+    console.log(
+      "AUTH EVENT:",
+      event
+    );
 
 
-    if (error) {
-      throw error;
+    if (
+      event === "INITIAL_SESSION"
+    ) {
+
+      if (session) {
+
+        showDashboard(
+          session
+        );
+
+
+        // Wait for Supabase auth
+        // initialization to finish.
+
+        setTimeout(
+          checkSubscription,
+          500
+        );
+
+      } else {
+
+        showLogin();
+
+      }
+
+      return;
+
     }
 
 
     if (
-      data &&
-      data.session
+      event === "SIGNED_OUT"
     ) {
 
-      showDashboard(
-        data.session
-      );
-
-      await checkSubscription();
-
-    } else {
-
       showLogin();
+
+      return;
 
     }
 
 
-  } catch (error) {
+    if (
+      event === "SIGNED_IN" &&
+      session
+    ) {
 
-    console.error(
-      "START:",
-      error
-    );
+      showDashboard(
+        session
+      );
 
-    showLogin();
+      setTimeout(
+        checkSubscription,
+        300
+      );
+
+    }
 
   }
+);
 
-}
 
+// ========================================
+// START
+// ========================================
 
-start();
+setAuthMode(false);
